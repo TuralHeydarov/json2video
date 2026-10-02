@@ -37,6 +37,9 @@ RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction --pr
 # Copy application
 COPY . .
 
+# Create runtime directories excluded from the image context before bootstrap.
+RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs storage/app/public bootstrap/cache
+
 # Generate autoloader
 RUN composer dump-autoload --optimize --no-dev --no-interaction
 

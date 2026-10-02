@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+**/vendor
+**/node_modules
+**/__pycache__
+api/storage
+api/public/storage
+storage
+videos
+backups
+*.log
