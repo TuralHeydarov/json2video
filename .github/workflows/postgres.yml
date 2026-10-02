@@ -71,3 +71,52 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pip install -r renderer/requirements.txt
       - run: python tools/render_fixture.py
+
+  release-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: api
+          file: api/Dockerfile
+          push: false
+          load: true
+          tags: json2video-api:${{ github.sha }}
+          cache-from: type=gha,scope=json2video-api
+          cache-to: type=gha,mode=max,scope=json2video-api
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/nginx.Dockerfile
+          push: false
+          load: true
+          tags: json2video-nginx:${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: renderer
+          file: renderer/Dockerfile
+          push: false
+          load: true
+          tags: json2video-renderer:${{ github.sha }}
+          cache-from: type=gha,scope=json2video-renderer
+          cache-to: type=gha,mode=max,scope=json2video-renderer
+      - run: |
+          docker run --rm --network none --entrypoint php json2video-api:${{ github.sha }} -r "if(!extension_loaded('pdo_pgsql'))exit(1);echo 'PostgreSQL runtime ready';"
+          docker network create json2video-fixture
+          trap 'docker rm -f json2video-api-fixture json2video-nginx-fixture; docker network rm json2video-fixture' EXIT
+          docker run -d --network json2video-fixture --network-alias api --name json2video-api-fixture -e APP_ENV=testing -e APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= -e SESSION_DRIVER=array -e CACHE_STORE=array json2video-api:${{ github.sha }}
+          docker run -d --network json2video-fixture --name json2video-nginx-fixture -p 127.0.0.1:43993:80 json2video-nginx:${{ github.sha }}
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:43993/login > fixture-login.html
+          grep -q 'Welcome Back' fixture-login.html
+          docker run --rm --network none --memory 3g --memory-swap 3g --cpus 2 --entrypoint python json2video-renderer:${{ github.sha }} -c "from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo',device='cpu',compute_type='int8',local_files_only=True);print('Baked offline model ready')"
+          docker save json2video-api:${{ github.sha }} json2video-nginx:${{ github.sha }} json2video-renderer:${{ github.sha }} | gzip > json2video-images.tar.gz
+          sha256sum json2video-images.tar.gz > json2video-images.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: json2video-images-${{ github.sha }}
+          path: |
+            json2video-images.tar.gz
+            json2video-images.tar.gz.sha256
+          retention-days: 1

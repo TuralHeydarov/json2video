@@ -88,3 +88,41 @@ an adequate budget. The 3 GiB candidate ceiling is provisional and configurable 
 JSON2VIDEO_RENDERER_MEMORY. A second 3 GiB silent-audio fixture peaked at
 2,268,069,888 bytes (RSS 1,743,618,048), with no max/oom/oom_kill events; real speech,
 large media and combined render/transcribe loads still need acceptance.
+
+
+## Immutable target release
+
+Successful main CI builds PHP, nginx and renderer images from that exact commit,
+checks native extensions and an isolated PHP/nginx login, and loads the baked
+Whisper model offline under a 3 GiB limit. Its `json2video-images-<SHA>` workflow
+artifact includes the image archive and SHA-256. Download the exact green main
+run, verify the hash and load images before the coordinated release. Set the three
+JSON2VIDEO_*_IMAGE variables to its SHA tags. No production configuration belongs
+in images or artifacts.
+
+Target compose embeds reviewed code rather than mounting a mutable checkout.
+Set JSON2VIDEO_RUNTIME_DIR to the verified target runtime copy containing
+api-storage, renders, videos and Redis data. API storage and renders retain their
+source contents and writable PHP UID permissions; nginx sees public uploads read-only.
+Before any target consumer starts, restore the final source Redis state into its
+own directory, preserving a rollback copy and avoiding stale target AOF files.
+Redis, queue, scheduler and renderer are all behind `cutover`.
+
+For migrations use a separate private migrator env file via JSON2VIDEO_ENV_FILE
+and `docker compose -f deploy/compose.rs8000.yml run --rm --no-deps api php artisan
+migrate --force`; runtime uses the restricted runtime role. Run only after the
+reviewed shared DB admission, against the agreed isolated schema. Do not invoke
+production migrations as part of build/preview. Keep ordinary runtime secrets in
+the default private .env.rs8000.
+
+The final switch must update AlMotion's existing HTTP endpoint or deploy a reviewed
+compatibility proxy for it in the same serialized routing window. Until that is
+verified, starting target consumers is blocked: accepting new jobs into the old
+source database after final synchronization would split the queue. Preserve old
+media URLs and the rollback services/data. Live acceptance must record the exact
+image/commit, database isolation, retained jobs/media and shared Auth checks.
+
+
+Set JSON2VIDEO_REDIS_PREFIX to the verified source PHP/renderer queue prefix.
+Do not rename prefixes during restore: that would hide pending source jobs from
+the target worker. PHP and renderer must receive the same preserved prefix.

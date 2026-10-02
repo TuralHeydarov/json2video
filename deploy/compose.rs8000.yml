@@ -2,23 +2,21 @@
 # Keep workers behind the cutover profile until final data synchronization.
 name: json2video-rs8000
 x-app: &app
-  build:
-    context: ../api
-    dockerfile: Dockerfile
-  env_file: ../.env.rs8000
+  image: ${JSON2VIDEO_API_IMAGE:?Supply the reviewed commit image}
+  env_file: ${JSON2VIDEO_ENV_FILE:-../.env.rs8000}
   environment:
     DB_CONNECTION: pgsql
     DB_SCHEMA: json2video
     DB_HOST: mind-supabase-db
     DB_PORT: 5432
     REDIS_HOST: redis
-    REDIS_PREFIX: json2video-database-
+    REDIS_PREFIX: ${JSON2VIDEO_REDIS_PREFIX:?Supply verified source queue prefix}
     QUEUE_CONNECTION: redis
     CACHE_STORE: redis
     STORAGE_PATH: /var/www/html/storage/renders
   volumes:
-    - ../api:/var/www/html
-    - ../storage/renders:/var/www/html/storage/renders
+    - ${JSON2VIDEO_RUNTIME_DIR:?Supply verified target data}/api-storage:/var/www/html/storage
+    - ${JSON2VIDEO_RUNTIME_DIR:?Supply verified target data}/renders:/var/www/html/storage/renders
   networks: [app, database]
   restart: unless-stopped
   mem_limit: 256m
@@ -36,41 +34,42 @@ services:
     command: sh -c 'while true; do php artisan schedule:run --no-interaction; sleep 60; done'
   renderer:
     profiles: [cutover]
-    build:
-      context: ../renderer
-    env_file: ../.env.rs8000
+    image: ${JSON2VIDEO_RENDERER_IMAGE:?Supply the reviewed commit image}
+    env_file: ${JSON2VIDEO_ENV_FILE:-../.env.rs8000}
     environment:
       DB_CONNECTION: pgsql
       DB_SCHEMA: json2video
       DB_HOST: mind-supabase-db
       DB_PORT: 5432
       REDIS_HOST: redis
-      REDIS_PREFIX: json2video-database-
+      REDIS_PREFIX: ${JSON2VIDEO_REDIS_PREFIX:?Supply verified source queue prefix}
       WORKER_CONCURRENCY: 1
       STORAGE_PATH: /app/storage/renders
     volumes:
-      - ../storage/renders:/app/storage/renders
-      - ../videos:/app/media:ro
+      - ${JSON2VIDEO_RUNTIME_DIR:?Supply verified target data}/renders:/app/storage/renders
+      - ${JSON2VIDEO_RUNTIME_DIR:?Supply verified target data}/videos:/app/media:ro
     networks: [app, database]
     restart: unless-stopped
     mem_limit: ${JSON2VIDEO_RENDERER_MEMORY:-3g}
     cpus: 2
   nginx:
-    image: nginx:1.25-alpine
+    image: ${JSON2VIDEO_NGINX_IMAGE:?Supply the reviewed commit image}
     ports: ['127.0.0.1:${JSON2VIDEO_PORT:-2993}:80']
     volumes:
-      - ../nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ../storage/renders:/var/www/renders:ro
-      - ../videos:/var/www/media:ro
-      - ../api:/var/www/html:ro
+      - ${JSON2VIDEO_RUNTIME_DIR:?Supply verified target data}/renders:/var/www/renders:ro
+      - ${JSON2VIDEO_RUNTIME_DIR:?Supply verified target data}/videos:/var/www/media:ro
+      - ${JSON2VIDEO_RUNTIME_DIR:?Supply verified target data}/api-storage:/var/www/html/storage:ro
     depends_on: [api]
     networks: [app]
     restart: unless-stopped
     mem_limit: 64m
     cpus: 0.25
   redis:
+    profiles: [cutover]
     image: redis:7-alpine
-    volumes: [redis_data:/data]
+    command: redis-server --appendonly yes
+    volumes:
+      - ${JSON2VIDEO_RUNTIME_DIR:?Supply verified target data}/redis:/data
     networks: [app]
     restart: unless-stopped
     mem_limit: 128m
@@ -80,5 +79,3 @@ networks:
   database:
     external: true
     name: mind-supabase_default
-volumes:
-  redis_data:
