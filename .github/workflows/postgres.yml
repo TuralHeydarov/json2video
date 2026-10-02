@@ -1,0 +1,73 @@
+name: PostgreSQL compatibility
+on:
+  pull_request:
+  push:
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: fixture-only
+          POSTGRES_DB: rehearsal
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DB_CONNECTION: pgsql
+      DB_SCHEMA: json2video
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: rehearsal
+      DB_USERNAME: postgres
+      DB_PASSWORD: fixture-only
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, pdo_sqlite
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: api
+      - run: psql -h 127.0.0.1 -U postgres -d rehearsal -c 'CREATE SCHEMA json2video; CREATE SCHEMA json2video_import; CREATE SCHEMA json2video_auth;'
+        env:
+          PGPASSWORD: fixture-only
+      - run: php artisan test --filter=SharedAuthTest
+        working-directory: api
+        env:
+          DB_SCHEMA: json2video_auth
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+      - run: php artisan migrate --force
+        working-directory: api
+      - run: php artisan migrate --force
+        working-directory: api
+        env:
+          DB_SCHEMA: json2video_import
+      - run: |
+          psql -h 127.0.0.1 -U postgres -d rehearsal -v ON_ERROR_STOP=1 <<'SQL'
+          SET search_path=json2video,pg_catalog;
+          INSERT INTO plans (id,name,slug) VALUES (1,'fixture','fixture');
+          INSERT INTO users (id,name,email,password,plan_id) VALUES (1,'fixture','fixture@invalid.test','fixture',1);
+          INSERT INTO webhook_configs (user_id,url,is_active) VALUES (1,'https://invalid.test/webhook',TRUE);
+          SQL
+        env:
+          PGPASSWORD: fixture-only
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install 'psycopg[binary]==3.2.13'
+      - run: python -m unittest discover -s tests -v
+        working-directory: renderer
+  offline-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pip install -r renderer/requirements.txt
+      - run: python tools/render_fixture.py

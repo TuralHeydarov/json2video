@@ -9,10 +9,11 @@ RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
     libonig-dev \
     libxml2-dev \
+    libpq-dev \
     zip \
     unzip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd \
+    && docker-php-ext-install pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apt-get clean \
@@ -31,16 +32,16 @@ WORKDIR /var/www/html
 
 # Copy composer files first for better caching
 COPY composer.json composer.lock* ./
-RUN composer install --no-dev --no-scripts --no-autoloader 2>/dev/null || true
+RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction --prefer-dist
 
 # Copy application
 COPY . .
 
 # Generate autoloader
-RUN composer dump-autoload --optimize 2>/dev/null || true
+RUN composer dump-autoload --optimize --no-dev --no-interaction
 
 # Set permissions
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 EXPOSE 9000
 CMD ["php-fpm"]
