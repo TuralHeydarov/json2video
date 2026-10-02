@@ -13,6 +13,10 @@
                 @if($errors->any())
                     <div class="alert alert-error">{{ $errors->first() }}</div>
                 @endif
+                @if(app(\App\Services\SharedBrowser::class)->available())
+                    <a href="/shared/start" class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px">Continue with Tural</a>
+                    <p class="text-muted" style="font-size:13px;margin-bottom:20px;text-align:center">Already use this app? Sign in below, then link your Tural account.</p>
+                @endif
                 <form method="POST" action="/login">
                     @csrf
                     <div class="form-group">

@@ -15,11 +15,13 @@ class AuthController extends Controller
     {
         if (auth()->check())
             return redirect('/dashboard');
+        if (config('shared_auth.enabled')) return redirect('/shared/start?intent=signup');
         return view('portal.register');
     }
 
     public function register(Request $request)
     {
+        abort_if(config('shared_auth.enabled'), 403, 'Create your account through Tural sign-in');
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
@@ -70,6 +72,10 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            if (config('shared_auth.enabled') && \Illuminate\Support\Facades\DB::table('shared_auth_identities')->where('user_id', Auth::id())->exists()) {
+                Auth::logout();
+                return back()->withErrors(['email' => 'Use Tural sign-in for this linked account.']);
+            }
             $request->session()->regenerate();
             return redirect()->intended('/dashboard');
         }
@@ -79,6 +85,7 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        if (config('shared_auth.enabled')) app(\App\Services\SharedBrowser::class)->clear($request);
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

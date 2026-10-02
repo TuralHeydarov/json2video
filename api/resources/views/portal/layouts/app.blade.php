@@ -434,6 +434,10 @@
         .mt-4 {
             margin-top: 16px;
         }
+        @media (max-width: 600px) {
+            .navbar { padding: 12px 16px; gap: 12px; flex-wrap: wrap; }
+            .navbar-links { width: 100%; gap: 12px; flex-wrap: wrap; }
+        }
     </style>
     @yield('styles')
 </head>
@@ -446,6 +450,7 @@
         </a>
         <div class="navbar-links">
             @auth
+                @if(app(\App\Services\SharedBrowser::class)->available())<a href="/shared/account">Tural account</a>@endif
                 <a href="/dashboard" class="{{ request()->is('dashboard') ? 'active' : '' }}">Dashboard</a>
                 <a href="/plans" class="{{ request()->is('plans') ? 'active' : '' }}">Plans</a>
                 <form method="POST" action="/logout" style="display:inline">@csrf<button type="submit"
