@@ -12,8 +12,10 @@ class Config:
     REDIS_QUEUE = REDIS_PREFIX + 'render:jobs'
 
     # Database
+    DB_CONNECTION = os.getenv('DB_CONNECTION', 'mysql')
+    DB_SCHEMA = os.getenv('DB_SCHEMA', 'json2video')
     DB_HOST = os.getenv('DB_HOST', 'localhost')
-    DB_PORT = int(os.getenv('DB_PORT', 3306))
+    DB_PORT = int(os.getenv('DB_PORT', 5432 if DB_CONNECTION == 'pgsql' else 3306))
     DB_DATABASE = os.getenv('DB_DATABASE', 'json2video')
     DB_USERNAME = os.getenv('DB_USERNAME', 'json2video')
     DB_PASSWORD = os.getenv('DB_PASSWORD', 'secret123')

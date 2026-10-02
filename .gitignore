@@ -32,3 +32,6 @@ redis_data/
 
 # Temp
 /tmp/
+
+.env.rs8000
+**/__pycache__/

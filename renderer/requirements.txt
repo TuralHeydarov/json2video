@@ -1,4 +1,6 @@
 redis==5.0.1
+# OpenCV 4.9 wheels use the NumPy 1.x ABI.
+numpy==1.26.4
 moviepy==1.0.3
 Pillow==10.4.0
 mysql-connector-python==8.3.0
@@ -9,3 +11,4 @@ opencv-python-headless==4.9.0.80
 faster-whisper==1.1.0
 ctranslate2>=4.0.0
 
+psycopg[binary]==3.2.13

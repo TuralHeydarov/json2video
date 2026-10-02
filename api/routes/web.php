@@ -40,6 +40,8 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::post('/shared/login', [\App\Http\Controllers\SharedAuthController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/shared/link', [\App\Http\Controllers\SharedAuthController::class, 'link'])->middleware(['auth', 'throttle:10,1']);
 
 // ─── User Portal (auth required) ──────────────
 Route::middleware('auth')->group(function () {

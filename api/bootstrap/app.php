@@ -13,6 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api/v1',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->appendToGroup('web', \App\Http\Middleware\SharedSessionExpiry::class);
         $middleware->alias([
             'api-key' => \App\Http\Middleware\ApiKeyAuth::class,
             'rate-limit' => \App\Http\Middleware\RateLimiter::class,

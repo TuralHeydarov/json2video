@@ -2,7 +2,7 @@
 JSON2Video Render Engine — Redis Queue Worker
 
 Listens to the Redis 'render:jobs' queue for new render jobs,
-processes them using the render engine, and updates job status in MySQL.
+processes them using the render engine, and updates job status in database.
 """
 import json
 import logging
@@ -18,7 +18,7 @@ if not hasattr(PIL.Image, 'ANTIALIAS'):
     PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
 
 import redis
-import mysql.connector
+from app.database import get_db_connection
 
 from app.config import Config
 from app.renderer.engine import RenderEngine
@@ -45,18 +45,6 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
-
-
-def get_db_connection():
-    """Create a new MySQL connection."""
-    return mysql.connector.connect(
-        host=Config.DB_HOST,
-        port=Config.DB_PORT,
-        database=Config.DB_DATABASE,
-        user=Config.DB_USERNAME,
-        password=Config.DB_PASSWORD,
-        autocommit=True,
-    )
 
 
 def update_job_status(db, job_id: str, status: str, **kwargs):
@@ -256,7 +244,7 @@ def send_webhook(db, job_id: str, status: str, job_data: dict, **kwargs):
         if not webhook_url and user_id:
             cursor = db.cursor(dictionary=True)
             cursor.execute(
-                'SELECT url FROM webhook_configs WHERE user_id = %s AND is_active = 1',
+                'SELECT url FROM webhook_configs WHERE user_id = %s AND is_active = TRUE',
                 (user_id,)
             )
             row = cursor.fetchone()
@@ -294,7 +282,7 @@ def main():
     """Main worker loop — listen to Redis queue and process jobs."""
     logger.info(f'🚀 JSON2Video Render Worker starting (ID: {Config.WORKER_ID})')
     logger.info(f'   Redis: {Config.REDIS_HOST}:{Config.REDIS_PORT}')
-    logger.info(f'   MySQL: {Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_DATABASE}')
+    logger.info(f'   database: {Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_DATABASE}')
     logger.info(f'   Storage: {Config.STORAGE_PATH}')
 
     # Connect to Redis
@@ -314,15 +302,15 @@ def main():
             logger.warning('Waiting for Redis...')
             time.sleep(2)
 
-    # Connect to MySQL
+    # Connect to database
     db = None
     while running:
         try:
             db = get_db_connection()
-            logger.info('Connected to MySQL ✅')
+            logger.info('Connected to database ✅')
             break
-        except mysql.connector.Error as e:
-            logger.warning(f'Waiting for MySQL... ({e})')
+        except Exception as e:
+            logger.warning(f'Waiting for database... ({e})')
             time.sleep(3)
 
     if not running or not db:
