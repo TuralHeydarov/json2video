@@ -45,7 +45,10 @@ class SharedAuthTest extends TestCase
         Http::fake(function ($request) use ($details, $encode) {
             if ($request->url() === $this->issuer.'/.well-known/jwks.json') {
                 return Http::response(['keys' => [['kid' => 'fixture', 'alg' => 'ES256', 'use' => 'sig',
-                    'kty' => 'EC', 'crv' => 'P-256', 'x' => $encode($details['ec']['x']), 'y' => $encode($details['ec']['y'])]]]);
+                    // OpenSSL may omit a leading zero; P-256 JWK coordinates are exactly 32 bytes.
+                    'kty' => 'EC', 'crv' => 'P-256',
+                    'x' => $encode(str_pad($details['ec']['x'], 32, "\0", STR_PAD_LEFT)),
+                    'y' => $encode(str_pad($details['ec']['y'], 32, "\0", STR_PAD_LEFT))]]]);
             }
             if ($request->url() === $this->issuer.'/oauth/token') {
                 $this->assertSame('Basic '.base64_encode($this->client.':fixture-only'), $request->header('Authorization')[0]);
