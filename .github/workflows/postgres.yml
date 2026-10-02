@@ -108,7 +108,7 @@ jobs:
           trap 'docker rm -f json2video-api-fixture json2video-nginx-fixture; docker network rm json2video-fixture' EXIT
           docker run -d --network json2video-fixture --network-alias api --name json2video-api-fixture -e APP_ENV=testing -e APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= -e SESSION_DRIVER=array -e CACHE_STORE=array json2video-api:${{ github.sha }}
           docker run -d --network json2video-fixture --name json2video-nginx-fixture -p 127.0.0.1:43993:80 json2video-nginx:${{ github.sha }}
-          curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:43993/login > fixture-login.html
+          curl --fail --retry 20 --retry-all-errors --retry-delay 1 --max-time 10 http://127.0.0.1:43993/login > fixture-login.html || { docker logs json2video-api-fixture; docker logs json2video-nginx-fixture; exit 1; }
           grep -q 'Welcome Back' fixture-login.html
           docker run --rm --network none --memory 3g --memory-swap 3g --cpus 2 --entrypoint python json2video-renderer:${{ github.sha }} -c "from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo',device='cpu',compute_type='int8',local_files_only=True);print('Baked offline model ready')"
           docker save json2video-api:${{ github.sha }} json2video-nginx:${{ github.sha }} json2video-renderer:${{ github.sha }} | gzip > json2video-images.tar.gz
