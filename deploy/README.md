@@ -31,30 +31,60 @@ Laravel APP_KEY, users, API-key hashes, plan/owner links and existing URLs.
    database isolation and HTTPS without real external generation or webhooks.
    Retain original services/data and verified backups for rollback.
 
-The compose limit is 2.94 GiB at maximum (three 256 MiB PHP services, 2 GiB renderer,
+The default compose ceiling is 3.94 GiB (three 256 MiB PHP services, 3 GiB renderer,
 128 MiB Redis and 64 MiB nginx), plus shared database growth. This is a ceiling,
 not a measured renderer peak or a reservation. Do not enable rendering until the
 coordinator accepts capacity and a fixture render fits within its limit.
 
 No automatic deployment exists in the upstream repository. This PR prepares
 compatibility, import verification and deployment configuration; production
-release still needs upstream merge, Mind safety and coordinated cutover.
+release uses the user-owned `TuralHeydarov/json2video` fork, Mind safety and
+coordinated cutover. The original upstream repository and history remain retained.
 
-Shared Auth is disabled by default. The prepared routes validate a fixed ES256
-issuer and resolve an explicit old-user binding. Linking requires a fresh legacy
-password plus a valid shared token; matching email or IdP metadata never creates
-ownership/admin rights. Existing API-key hashes, user/plan IDs and jobs remain.
-An expired shared login invalidates its Laravel session.
+Shared Auth is disabled by default. Configure a static confidential client with
+`SUPABASE_OAUTH_CLIENT_ID`, `SUPABASE_OAUTH_CLIENT_SECRET` and exact callback
+`SUPABASE_OAUTH_CALLBACK=https://json2video.tural.ai/shared/callback`; set
+`APP_URL=https://json2video.tural.ai`. Code/refresh exchange uses the fixed
+`https://id.tural.ai/auth/v1/oauth/token` endpoint. Verify the real issuer and signed
+client/session claims before enabling. Common consent belongs to the existing
+`https://tural.ai/oauth/authorize` site. Runtime needs only EXECUTE on reviewed
+`tural_auth.session_active(uuid,uuid)`, not direct access to auth tables.
 
-The coordinated browser callback is proposed at
-`https://json2video.tural.ai/shared/callback`. OAuth code/refresh exchange uses
-`https://id.tural.ai/auth/v1/oauth/token`; common consent belongs to the existing
-`https://tural.ai/oauth/authorize` site. Callback/PKCE, server-held refresh tokens,
-link/onboarding UI and immediate common session revocation still need acceptance
-before enabling this flag. This PR does not claim complete browser SSO.
+The browser flow implements one-use PKCE/state/nonce callbacks. Its database row
+holds access/refresh credentials encrypted with the preserved APP_KEY. Refresh is
+serialized by a database row lock across PHP workers. Laravel browser sessions
+must use a server-side driver; the enabled flag forces a host-only Secure/HttpOnly
+`__Host-json2video-session` cookie with Path=/ and SameSite=Lax. Tokens never enter
+browser JavaScript or callback redirects. Keep callback query code/state out of
+Caddy access logs.
+
+Existing users sign in locally, then open Tural account and confirm their existing
+password before proving the shared identity. No email merge or IdP admin grant is
+allowed. New verified accounts receive the existing Free plan, a normal user and
+default API key through the app's ordinary onboarding. Existing user/plan IDs,
+admin roles, API-key hashes and jobs remain intact. Linked legacy password and
+remember-me sessions are denied. Service API keys remain separate credentials.
+Every shared browser request checks native session revocation. Local logout clears
+the app session; global logout revokes Supabase sessions and reports unconfirmed
+revocation explicitly. The former browser-supplied token bridge is replaced by
+server code exchange.
+
+Apply the two reviewed additive identity/browser-session migrations with the app
+migrator after the isolated import. Keep the flag off until real login/onboarding,
+two-account linking, callback replay, foreign-user data denial and cross-app global
+logout pass. Offline provider fixtures do not establish live OAuth acceptance.
 
 An offline fixture exercises actual MP4 encoding, image resizing and decoded
 pixels without production DB/queues or network. Run `python tools/render_fixture.py`
 with the renderer requirements and FFmpeg installed. The NumPy 1.26.4 pin prevents
 the observed OpenCV 4.9 / NumPy 2 ABI failure. This small fixture does not establish
 peak memory for Whisper, large media or concurrent workloads.
+
+A bounded offline Whisper load plus two seconds of silent audio exited normally,
+but reached exactly the 2 GiB memory ceiling. This has no safety headroom and does
+not establish speech-processing capacity. The cutover renderer profile must stay
+off until a representative bounded rehearsal and shared capacity approval establish
+an adequate budget. The 3 GiB candidate ceiling is provisional and configurable with
+JSON2VIDEO_RENDERER_MEMORY. A second 3 GiB silent-audio fixture peaked at
+2,268,069,888 bytes (RSS 1,743,618,048), with no max/oom/oom_kill events; real speech,
+large media and combined render/transcribe loads still need acceptance.

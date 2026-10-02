@@ -5,11 +5,12 @@ namespace App\Services;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class SharedAuth
 {
-    public function claims(string $token): object
+    private function verified(string $token, string $audience, bool $identity = false): object
     {
         $issuer = rtrim(config('shared_auth.issuer'), '/');
         $url = parse_url($issuer);
@@ -26,13 +27,33 @@ class SharedAuth
             ($key['alg'] ?? '') === 'ES256' && ($key['kty'] ?? '') === 'EC'
             && ($key['crv'] ?? '') === 'P-256' && ($key['use'] ?? '') === 'sig'));
         $claims = JWT::decode($token, JWK::parseKeySet(['keys' => $keys]));
-        $audience = (array) ($claims->aud ?? []);
-        if (($claims->iss ?? '') !== $issuer || !in_array('authenticated', $audience, true)
+        $audiences = (array) ($claims->aud ?? []);
+        if (($claims->iss ?? '') !== $issuer || !in_array($audience, $audiences, true)
             || !is_int($claims->exp ?? null)
             || !preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $claims->sub ?? '')
-            || ($claims->role ?? '') !== 'authenticated' || ($claims->is_anonymous ?? false)) {
+            || (!$identity && (($claims->role ?? '') !== 'authenticated' || ($claims->is_anonymous ?? false)))) {
             throw new RuntimeException('Invalid shared identity');
         }
         return $claims;
+    }
+
+    public function claims(string $token): object
+    {
+        $claims = $this->verified($token, 'authenticated');
+        if (($claims->client_id ?? '') !== config('shared_auth.client_id')
+            || !preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $claims->session_id ?? '')) {
+            throw new RuntimeException('Invalid OAuth client or session');
+        }
+        $active = DB::selectOne('SELECT tural_auth.session_active(?::uuid,?::uuid) AS active',
+            [$claims->session_id, $claims->sub]);
+        if (($active->active ?? null) !== true) {
+            throw new RuntimeException('Shared session revoked');
+        }
+        return $claims;
+    }
+
+    public function identity(string $token): object
+    {
+        return $this->verified($token, config('shared_auth.client_id'), true);
     }
 }

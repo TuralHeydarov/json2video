@@ -684,6 +684,7 @@
         </nav>
 
         <div class="sidebar-footer">
+            @if(app(\App\Services\SharedBrowser::class)->available())<a href="/shared/account">Tural account</a>@endif
             <form method="POST" action="/admin/logout">
                 @csrf
                 <button type="submit">⏻ Logout</button>
