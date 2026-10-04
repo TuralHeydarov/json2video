@@ -1,25 +1,26 @@
 @if($paginator->hasPages())
+    @if($paginator->onFirstPage())
+        <span class="text-muted">←</span>
+    @else
+        <a href="{{ $paginator->previousPageUrl() }}">←</a>
+    @endif
     @foreach($elements as $element)
-        @if($element['type'] === 'previous')
-            @if($element['url'])
-                <a href="{{ $element['url'] }}">←</a>
-            @else
-                <span class="text-muted">←</span>
-            @endif
-        @elseif($element['type'] === 'next')
-            @if($element['url'])
-                <a href="{{ $element['url'] }}">→</a>
-            @else
-                <span class="text-muted">→</span>
-            @endif
-        @elseif($element['type'] === 'dots')
-            <span>…</span>
-        @else
-            @if($element['active'])
-                <span class="active"><span>{{ $element['label'] }}</span></span>
-            @else
-                <a href="{{ $element['url'] }}">{{ $element['label'] }}</a>
-            @endif
+        @if(is_string($element))
+            <span>{{ $element }}</span>
+        @endif
+        @if(is_array($element))
+            @foreach($element as $page => $url)
+                @if($page == $paginator->currentPage())
+                    <span class="active"><span>{{ $page }}</span></span>
+                @else
+                    <a href="{{ $url }}">{{ $page }}</a>
+                @endif
+            @endforeach
         @endif
     @endforeach
+    @if($paginator->hasMorePages())
+        <a href="{{ $paginator->nextPageUrl() }}">→</a>
+    @else
+        <span class="text-muted">→</span>
+    @endif
 @endif
