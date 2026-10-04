@@ -27,7 +27,7 @@ class DashboardController extends Controller
                 RenderJob::where('status', 'done')
                     ->whereNotNull('started_at')
                     ->whereNotNull('completed_at')
-                    ->selectRaw('AVG(TIMESTAMPDIFF(SECOND, started_at, completed_at)) as avg_time')
+                    ->selectRaw(self::averageSecondsSql() . ' as avg_time')
                     ->value('avg_time') ?? 0
             ),
         ];
@@ -67,5 +67,13 @@ class DashboardController extends Controller
             ->get();
 
         return view('admin.dashboard', compact('stats', 'recentJobs', 'jobsPerDay', 'planBreakdown', 'transcribeStats', 'recentTranscribeJobs'));
+    }
+
+    /** Average render duration in seconds; the expression differs between MySQL and PostgreSQL. */
+    public static function averageSecondsSql(): string
+    {
+        return \Illuminate\Support\Facades\DB::connection()->getDriverName() === 'pgsql'
+            ? 'AVG(EXTRACT(EPOCH FROM (completed_at - started_at)))'
+            : 'AVG(TIMESTAMPDIFF(SECOND, started_at, completed_at))';
     }
 }
