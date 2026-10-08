@@ -34,7 +34,7 @@ jobs:
       - run: psql -h 127.0.0.1 -U postgres -d rehearsal -c 'CREATE SCHEMA json2video; CREATE SCHEMA json2video_import; CREATE SCHEMA json2video_auth;'
         env:
           PGPASSWORD: fixture-only
-      - run: php artisan test --filter='SharedAuthTest|AdminDashboardTest|AdminPaginationTest'
+      - run: php artisan test --filter='SharedAuthTest|AdminDashboardTest|AdminPaginationTest|ExpirePlansTest'
         working-directory: api
         env:
           DB_SCHEMA: json2video_auth
