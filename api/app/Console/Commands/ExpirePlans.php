@@ -15,15 +15,22 @@ class ExpirePlans extends Command
     {
         $freePlan = Plan::where('slug', 'free')->first();
 
-        if (!$freePlan) {
-            $this->error('Free plan not found!');
-            return 1;
-        }
-
         $expired = User::whereNotNull('plan_expires_at')
             ->where('plan_expires_at', '<', now())
-            ->where('plan_id', '!=', $freePlan->id)
+            ->when($freePlan, fn ($q) => $q->where('plan_id', '!=', $freePlan->id))
             ->get();
+
+        // Installations without a Free plan (e.g. a single Enterprise plan) have
+        // nothing to downgrade to; that is only an error when someone has expired.
+        if ($expired->isEmpty()) {
+            $this->info('Done. 0 user(s) downgraded.');
+            return 0;
+        }
+
+        if (!$freePlan) {
+            $this->error("Free plan not found! {$expired->count()} expired user(s) left unchanged.");
+            return 1;
+        }
 
         foreach ($expired as $user) {
             $oldPlan = $user->plan?->name ?? 'Unknown';
